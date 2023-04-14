@@ -19,21 +19,31 @@ TU_white = [249,249,255]/255; % Used for soft
 TU_red = [195,49,47]/255;
 
 %% DECISIONS TO TAKE:
+
 % 0. What's the size of each RVE in the xy direction (how 'chuncky' will the gradient be)
 U_xyz = 3; % Edge size (in voxels) of the greyscale cube
+
 % 1. What's the thickness (in mm!) of the gradient? (I'll correct that to RVEs in the lines after)
 W_G = 1;
+
 % 2. Over which direction do you want to make the gradient?
 D_G = 1; % (0) Made over the soft material. (1) Made over the hard material. (2) Made over both materials.
-% 3. What is the type of interface function?
+
+% 3. What is the gradient shape of the interface function?
 fun_shape = 'Cos';%  'Sig' for sigmoid, 'Lin' for linear, 'Cos' for cosine
 
-% TPMS-FLUID options
+% 4. Gradient geometry: Choose the type of interface
+grad_geometry = 'Par'; % Par OR A TPMS (Gyroid, Diamond, Iwp, Bcc, Octo, Neovius, Schwarz)
+% THE FOLLOWING TWO ARE IGNORED IF YOU SET grad_function TO 'Par' !!!!!
+    U_grad_tpms = 18;    % Size of the gradient if it uses TPMS geometry, in voxels 
+    sheet_grad_tpms = 1; % Sheet- (1) or beam- (0) structure if gradient is TPMS 
+
+    % TPMS-FLUID options
 fun_tpms = 'Gyroid'; % Gyroid, Diamond, Iwp, Bcc, Octo, Neovius, Schwarz
 
 %NOTE: There's a density tpms loop integrated now. For each design you
 %send, it'll create verssions for each of the following densities
-rho_tpms_v = [0.33,0.46,0.58]; % Percentage of solid material within the TPMS   use 0.33, 0.46, 0.58
+rho_tpms_v = 0.33; % Percentage of solid material within the TPMS   use 0.33, 0.46, 0.58
 
 sheet_q = 1; % Is the equation for sheet- (1) or beam- (0) based TPMS?
 tpms_UC_vox = 60; %number of voxels for each unit cell (UC) of the TPMS cell (e.g., ideally, keep it in multiples of 12)
@@ -96,10 +106,14 @@ for i = design_num
     % TPMS density loop here to make the code more efficient:
     for jj = 1 : length(rho_tpms_v)
         rho_tpms = rho_tpms_v(jj);
-        name_struct = ['Finger_v',num2str(i),'_grey','_',fun_tpms,num2str(rho_tpms*100)];
+        name_struct = ['Finger_v',num2str(i),'_Grad-',grad_geometry,'_Fluid-',fun_tpms,num2str(rho_tpms*100)];
         close all
-        % Making it bitmap
-        [G_S_bits, G_H_bits] = make_bitmap(G_greyscale, rho_e, G_S, G_H, U_xyz, U_xyz);
+        if isequal(grad_geometry,'Par') % Making it bitmap
+            [G_S_bits, G_H_bits] = make_bitmap(G_greyscale, rho_e, G_S, G_H, U_xyz, U_xyz);
+        else % Making it TPMS
+            [G_S_bits, G_H_bits] = make_bitmap_TPMS(G_greyscale, rho_e, G_S, G_H, U_xyz, U_xyz, U_grad_tpms, grad_geometry, sheet_grad_tpms);
+        end
+        
         G_F_bits = repelem( G_F , size(G_S_bits,1)./size(G_F,1), size(G_S_bits,2)./size(G_F,2), size(G_S_bits,3)./size(G_F,3) );
         G_F1_bits = repelem( G_F1 , size(G_S_bits,1)./size(G_F1,1), size(G_S_bits,2)./size(G_F1,2), size(G_S_bits,3)./size(G_F1,3) );
         
@@ -125,7 +139,7 @@ for i = design_num
         figure; imshow3D(G_color_fluid); % Cyan is hard material, white is soft material, black is no material
         % Storing example images of the top layer:
         figure; imshow(squeeze(G_color_fluid(:,:,1,:))); % Cyan is hard material, white is soft material, black is no material
-        plot2svg([foldername_files,name_struct,'_F_col.svg']);
+        plot2svg([foldername_files,'\',name_struct,'_F_col.svg']);
         
         % MAKING A VIDEO
         makeVideosSIGMA( repelem( G_color_fluid, ceil(720/size(G_color_fluid,2)),ceil(720/size(G_color_fluid,2)))  ,[foldername_files,'\',name_struct,'_F_col'],floor(size(G_color_fluid,3)/15));
@@ -152,7 +166,7 @@ for i = design_num
         %% Making the print files:
         disp(name_struct)
         
-        toprint = 1; % Set this constant to 1 if you want to generate printing files (it may take a while)
+        toprint = 0; % Set this constant to 1 if you want to generate printing files (it may take a while)
         if toprint == 1
             Mat1 = 'VeroCY-V';  Mat2 = 'VeroClear';  Mat3 = 'VeroPureWht';
             Mat4 = 'M.Cleanser';    Mat5 = 'VeroMGT-V';  Mat6 = 'Agilus30Clr';

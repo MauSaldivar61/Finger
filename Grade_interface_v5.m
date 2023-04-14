@@ -19,26 +19,36 @@ TU_white = [249,249,255]/255; % Used for soft
 TU_red = [195,49,47]/255;
 
 %% DECISIONS TO TAKE:
+
 % 0. What's the size of each RVE in the xy direction (how 'chuncky' will the gradient be)
-U_xyz = 5; % Edge size (in voxels) of the greyscale cube
+U_xyz = 3; % Edge size (in voxels) of the greyscale cube
+
 % 1. What's the thickness (in mm!) of the gradient? (I'll correct that to RVEs in the lines after)
 W_G = 1;
+
 % 2. Over which direction do you want to make the gradient?
 D_G = 1; % (0) Made over the soft material. (1) Made over the hard material. (2) Made over both materials.
-% 3. What is the type of interface function?
+
+% 3. What is the gradient shape of the interface function?
 fun_shape = 'Cos';%  'Sig' for sigmoid, 'Lin' for linear, 'Cos' for cosine
 
-% TPMS-FLUID options
+% 4. Gradient geometry: Choose the type of interface
+grad_geometry = 'Par'; % Par OR A TPMS (Gyroid, Diamond, Iwp, Bcc, Octo, Neovius, Schwarz)
+% THE FOLLOWING TWO ARE IGNORED IF YOU SET grad_function TO 'Par' !!!!!
+    U_grad_tpms = 18;    % Size of the gradient if it uses TPMS geometry, in voxels 
+    sheet_grad_tpms = 1; % Sheet- (1) or beam- (0) structure if gradient is TPMS 
+
+    % TPMS-FLUID options
 fun_tpms = 'Gyroid'; % Gyroid, Diamond, Iwp, Bcc, Octo, Neovius, Schwarz
 
 %NOTE: There's a density tpms loop integrated now. For each design you
 %send, it'll create verssions for each of the following densities
-rho_tpms_v = [0.33,0.46,0.58]; % Percentage of solid material within the TPMS   use 0.33, 0.46, 0.58
+rho_tpms_v = 0.33; % Percentage of solid material within the TPMS   use 0.33, 0.46, 0.58
 
 sheet_q = 1; % Is the equation for sheet- (1) or beam- (0) based TPMS?
 tpms_UC_vox = 60; %number of voxels for each unit cell (UC) of the TPMS cell (e.g., ideally, keep it in multiples of 12)
 
-design_num = 1:2; % How many variations of the design you wanna test?
+design_num = 3; % How many variations of the design you wanna test?
 
 for i = design_num
     % What's the name of the hard (H), soft (S), and Fluid (F, F1) files
@@ -55,7 +65,7 @@ for i = design_num
     % The xy direction (For simplicity, the voxels will be squared plates)
     vox_xyz = 25.4/300; % Edge size of the cubic voxel
     RVE_xyz = vox_xyz*U_xyz; % Edge size of the RVE
-    W_G = round(W_G/RVE_xyz);
+    W_Gc = round(W_G/RVE_xyz);
     
     %% Importing the files:
     [G_S, G_H, G_F, G_F1] = import_SoftHard_design_v2(filename_S, filename_H, filename_F, filename_F1, RVE_xyz, RVE_xyz); %G_S is the soft material 2D image, G_H is the hard one
@@ -66,7 +76,7 @@ for i = design_num
     figure; imshow3D(G_color); % Cyan is hard material, white is soft material, black is no material
     
     % CREATE GRADED INTERFACE
-    [G_greyscale, rho_e] = create_design_layers(G_S, G_H, W_G, D_G, fun_shape);
+    [G_greyscale, rho_e] = create_design_layers(G_S, G_H, W_Gc, D_G, fun_shape);
     
     %% Plotting things:
     % First the function:
@@ -88,22 +98,27 @@ for i = design_num
     %% Store the file for Abaquss
     G_greyscale(G_greyscale>0&G_greyscale<0.01) = 0.01;
     name_struct = ['Finger_v',num2str(i),'_grey'];
-    TPMS_write_AbaqusInput_v2(folder_abbas,name_struct,double(G_greyscale),...
-        RVE_xyz, RVE_xyz, RVE_xyz, 1, 1, 1);
+% % %     TPMS_write_AbaqusInput_v2(folder_abbas,name_struct,double(G_greyscale),...
+% % %         RVE_xyz, RVE_xyz, RVE_xyz, 1, 1, 1);
     disp(['The FEM model will have ',num2str(round(sum(ceil(G_greyscale(G_greyscale>0))))), ' elements!'])
     
     % Since the next step is making the bitmap and fluid, we add the
     % TPMS density loop here to make the code more efficient:
     for jj = 1 : length(rho_tpms_v)
         rho_tpms = rho_tpms_v(jj);
-        name_struct = ['Finger_v',num2str(i),'_grey','_',fun_tpms,num2str(rho_tpms*100)];
-        closes        % Making it bitmap
-        [G_S_bits, G_H_bits] = make_bitmap(G_greyscale, rho_e, G_S, G_H, U_xyz, U_xyz);
+        name_struct = ['Finger_v',num2str(i),'_Grad-',grad_geometry,'_Fluid-',fun_tpms,num2str(rho_tpms*100)];
+        close all
+        if isequal(grad_geometry,'Par') % Making it bitmap
+            [G_S_bits, G_H_bits] = make_bitmap(G_greyscale, rho_e, G_S, G_H, U_xyz, U_xyz);
+        else % Making it TPMS
+            [G_S_bits, G_H_bits] = make_bitmap_TPMS(G_greyscale, rho_e, G_S, G_H, U_xyz, U_xyz, U_grad_tpms, grad_geometry, sheet_grad_tpms);
+        end
+        
         G_F_bits = repelem( G_F , size(G_S_bits,1)./size(G_F,1), size(G_S_bits,2)./size(G_F,2), size(G_S_bits,3)./size(G_F,3) );
         G_F1_bits = repelem( G_F1 , size(G_S_bits,1)./size(G_F1,1), size(G_S_bits,2)./size(G_F1,2), size(G_S_bits,3)./size(G_F1,3) );
         
         % CREATE TPMS-FLUID PART
-        rho_fun = rho_tpms*ones(1,size(G_F_bits,2)); % Get the density function
+        rho_fun = rho_tpms*ones(1,ceil(size(G_F_bits,2)/tpms_UC_vox)*tpms_UC_vox); % Get the density function
         W_t = ceil(size(G_F_bits,2)/tpms_UC_vox)*tpms_UC_vox*vox_xyz; % Get a dimension that fits the TPMS on the size of the entire finger
         H_t = ceil(size(G_F_bits,1)/tpms_UC_vox)*tpms_UC_vox*vox_xyz; % Get a dimension that fits the TPMS on the size of the entire finger
         L_t = ceil(size(G_F_bits,3)/tpms_UC_vox)*tpms_UC_vox*vox_xyz; % Get a dimension that fits the TPMS on the size of the entire finger
@@ -124,10 +139,10 @@ for i = design_num
         figure; imshow3D(G_color_fluid); % Cyan is hard material, white is soft material, black is no material
         % Storing example images of the top layer:
         figure; imshow(squeeze(G_color_fluid(:,:,1,:))); % Cyan is hard material, white is soft material, black is no material
-        plot2svg([foldername_files,name_struct,'_F_col.svg']);
+        plot2svg([foldername_files,'\',name_struct,'_F_col.svg']);
         
         % MAKING A VIDEO
-        makeVideosSIGMA( repelem( G_color_fluid, ceil(720/size(G_color_fluid,2)),ceil(720/size(G_color_fluid,2)))  ,[foldername_files,name_struct,'_F_col'],12);
+        makeVideosSIGMA( repelem( G_color_fluid, ceil(720/size(G_color_fluid,2)),ceil(720/size(G_color_fluid,2)))  ,[foldername_files,'\',name_struct,'_F_col'],floor(size(G_color_fluid,3)/15));
         
         %% Extending the designs for printing and making the files:
         % The printing sizes:

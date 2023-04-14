@@ -450,7 +450,12 @@ for II in range(0, len(type_lab)):
     alpha = strainperc/100.*Wr*voxX
     mdb.models[modelo].rootAssembly.Set(name='PerBound',
         nodes=[
-        mdb.models[modelo].rootAssembly.instances['Lattice'].nodes.getByBoundingBox(xMin=0.0-tol, yMin=0.0-tol, zMin=0.0-tol, xMax=0.0+tol, yMax=0.0+tol, zMax=0.0+tol),
+        mdb.models[modelo].rootAssembly.instances['Lattice'].nodes.getByBoundingBox(xMin=0.0-tol, yMin=0.0-tol, zMin=0.0-tol, xMax=0.0+tol, yMax=voxY*Hr+tol, zMax=voxZ*Lr+tol),
+        mdb.models[modelo].rootAssembly.instances['Lattice'].nodes.getByBoundingBox(xMin=0.0-tol, yMin=0.0-tol, zMin=0.0-tol, xMax=voxX*Wr+tol, yMax=0.0+tol, zMax=voxZ*Lr+tol),
+        mdb.models[modelo].rootAssembly.instances['Lattice'].nodes.getByBoundingBox(xMin=0.0-tol, yMin=0.0-tol, zMin=0.0-tol, xMax=voxX*Wr+tol, yMax=voxY*Hr+tol, zMax=0.0+tol),
+        mdb.models[modelo].rootAssembly.instances['Lattice'].nodes.getByBoundingBox(xMin=voxX*Wr-tol, yMin=0.0-tol, zMin=0.0-tol, xMax=voxX*Wr+tol, yMax=voxY*Hr+tol, zMax=voxZ*Lr+tol),
+        mdb.models[modelo].rootAssembly.instances['Lattice'].nodes.getByBoundingBox(xMin=0.0-tol, yMin=voxY*Hr-tol, zMin=0.0-tol, xMax=voxX*Wr+tol, yMax=voxY*Hr+tol, zMax=voxZ*Lr+tol),
+        mdb.models[modelo].rootAssembly.instances['Lattice'].nodes.getByBoundingBox(xMin=0.0-tol, yMin=0.0-tol, zMin=voxZ*Lr-tol, xMax=voxX*Wr+tol, yMax=voxY*Hr+tol, zMax=voxZ*Lr+tol),
         ],)
     (CoorFixNode,NameRef1, NameRef2, NameRef3)=PeriodicBound3D_reduced(mdb,modelo,'PerBound',[(Wr*voxX,0.0,0.0),(0.0,Hr*voxY,0.0),(0.0,0.0,voxZ*Lr)],[0,1,1])
     mdb.models[modelo].rootAssembly.translate(instanceList=('RefPoint-1', ), vector=(Wr*voxX, Hr*voxY*0.5, Lr*voxZ*0.5))
